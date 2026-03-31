@@ -8,6 +8,8 @@ def decode(filepath: str) -> None:
 
         # Index entries
         for i in range(_bytes_to_int(num_index_entries)):
+            print("[entry]")
+
             metadata = f.read(42)
             ctime_sec = metadata[0:4]
             ctime_ns = metadata[4:8]
@@ -17,6 +19,24 @@ def decode(filepath: str) -> None:
             ino = metadata[20:24]
             mode = metadata[24:28]
             type_and_permissions = metadata[28:30]
+            object_type = _bytes_to_int(type_and_permissions) >> 12
+            permissions = _bytes_to_int(type_and_permissions) << 7 >> 7
+            uid = metadata[30:34]
+            gid = metadata[34:38]
+            file_size = metadata[38:42]
+
+            print(_format_value_line("ctime_sec:", _bytes_to_int(ctime_sec)))
+            print(_format_value_line("ctime_ns:", _bytes_to_int(ctime_ns)))
+            print(_format_value_line("mtime_sec:", _bytes_to_int(mtime_sec)))
+            print(_format_value_line("mtime_ns:", _bytes_to_int(mtime_ns)))
+            print(_format_value_line("dev:", _bytes_to_int(dev)))
+            print(_format_value_line("ino:", _bytes_to_int(ino)))
+            print(_format_value_line("mode:", _bytes_to_int(mode)))
+            print(_format_value_line("type:", object_type))
+            print(_format_value_line("permissions:", permissions))
+            print(_format_value_line("uid:", _bytes_to_int(uid)))
+            print(_format_value_line("gid:", _bytes_to_int(gid)))
+            print(_format_value_line("size:", _bytes_to_int(file_size)))
 
         # Extensions
         extension_signature = f.read(4)
