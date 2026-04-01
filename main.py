@@ -2,7 +2,7 @@ from gid.decoder import decode
 
 
 def main():
-    index_filepath = "./tests/index"
+    index_filepath = "./tests/01.index"
     decode(index_filepath)
 
 

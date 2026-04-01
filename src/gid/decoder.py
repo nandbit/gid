@@ -2,60 +2,106 @@ def decode(filepath: str) -> None:
     with open(filepath, "rb") as f:
         # Header
         header = f.read(12)
-        dircache = header[0:4]
-        version = header[4:8]
-        num_index_entries = header[8:12]
+
+        dircache: str = _bytes_to_ascii(header[0:4])
+        version: int = _bytes_to_int(header[4:8])
+        num_index_entries: int = _bytes_to_int(header[8:12])
 
         # Index entries
-        for i in range(_bytes_to_int(num_index_entries)):
+        for i in range(num_index_entries):
             print("[entry]")
 
-            metadata = f.read(42)
-            ctime_sec = metadata[0:4]
-            ctime_ns = metadata[4:8]
-            mtime_sec = metadata[8:12]
-            mtime_ns = metadata[12:16]
-            dev = metadata[16:20]
-            ino = metadata[20:24]
-            mode = metadata[24:28]
-            type_and_permissions = metadata[28:30]
-            object_type = _bytes_to_int(type_and_permissions) >> 12
-            permissions = _bytes_to_int(type_and_permissions) << 7 >> 7
-            uid = metadata[30:34]
-            gid = metadata[34:38]
-            file_size = metadata[38:42]
+            metadata: bytes = f.read(40)
 
-            print(_format_value_line("ctime_sec:", _bytes_to_int(ctime_sec)))
-            print(_format_value_line("ctime_ns:", _bytes_to_int(ctime_ns)))
-            print(_format_value_line("mtime_sec:", _bytes_to_int(mtime_sec)))
-            print(_format_value_line("mtime_ns:", _bytes_to_int(mtime_ns)))
-            print(_format_value_line("dev:", _bytes_to_int(dev)))
-            print(_format_value_line("ino:", _bytes_to_int(ino)))
-            print(_format_value_line("mode:", _bytes_to_int(mode)))
-            print(_format_value_line("type:", object_type))
-            print(_format_value_line("permissions:", permissions))
-            print(_format_value_line("uid:", _bytes_to_int(uid)))
-            print(_format_value_line("gid:", _bytes_to_int(gid)))
-            print(_format_value_line("size:", _bytes_to_int(file_size)))
+            ctime_sec: int = _bytes_to_int(metadata[0:4])
+            ctime_ns: int = _bytes_to_int(metadata[4:8])
+            mtime_sec: int = _bytes_to_int(metadata[8:12])
+            mtime_ns: int = _bytes_to_int(metadata[12:16])
+            dev: int = _bytes_to_int(metadata[16:20])
+            ino: int = _bytes_to_int(metadata[20:24])
+            type_and_permissions: bytes = metadata[24:28]
+            mode: str = _parse_mode(type_and_permissions)
+            uid: int = _bytes_to_int(metadata[28:32])
+            gid: int = _bytes_to_int(metadata[32:36])
+            file_size: int = _bytes_to_int(metadata[36:40])
+
+            sha1: bytes = f.read(18)
+
+            flags_bytes: bytes = f.read(2)
+            assume_valid, extended, stage, name_len = _parse_flags(flags_bytes)
+
+            if (version >= 3) and (extended == 1):
+                pass
+
+            print(_format_value_line("ctime_sec:", ctime_sec))
+            print(_format_value_line("ctime_ns:", ctime_ns))
+            print(_format_value_line("mtime_sec:", mtime_sec))
+            print(_format_value_line("mtime_ns:", mtime_ns))
+            print(_format_value_line("dev:", dev))
+            print(_format_value_line("ino:", ino))
+            print(_format_value_line("mode:", mode))
+            print(_format_value_line("uid:", uid))
+            print(_format_value_line("gid:", gid))
+            print(_format_value_line("size:", file_size))
+            print(_format_value_line("sha1:", sha1.hex()))
+            print(_format_value_line("assume-valid:", assume_valid))
+            print(_format_value_line("extended:", extended))
+            print(_format_value_line("stage:", stage))
+            print(_format_value_line("length:", name_len))
+
+            break
 
         # Extensions
-        extension_signature = f.read(4)
-        extension_optional = _is_extension_optional(extension_signature)
-        extension_size = f.read(4)
-        extension_data = f.read(_bytes_to_int(extension_size))
+        extension_signature: bytes = f.read(4)
+        extension_optional: bool = _is_extension_optional(extension_signature)
+        extension_size: int = _bytes_to_int(f.read(4))
+        extension_data: bytes = f.read(extension_size)
 
         print("[header]")
         print(_format_value_line("dircache", dircache))
-        print(f"{'version:':<30} {_bytes_to_int(version)}")
-        print(f"{'entries:':<30} {_bytes_to_int(num_index_entries)}")
+        print(f"{'version:':<30} {version}")
+        print(f"{'entries:':<30} {num_index_entries}")
 
         print("")
 
         print("[extension]")
-        print(_format_value_line("signature:", str(extension_signature)))
+        print(_format_value_line("signature:", _bytes_to_ascii(extension_signature)))
         print(_format_value_line("optional:", str(extension_optional)))
-        print(_format_value_line("size:", _bytes_to_int(extension_size)))
+        print(_format_value_line("size:", extension_size))
         print(_format_value_line("data:", str(extension_data)))
+
+
+def _parse_mode(b: bytes) -> str:
+    # Type|---|Perm bits
+    # 1000 000 111101101
+    # 1 0   0   7  5  5
+
+    # For type:
+    # 1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
+
+    b_int = int.from_bytes(bytes=b, byteorder="big")
+    type_h = str(b_int >> 15)
+    type_l = str((b_int >> 12) & 0x0007)
+    perm_h = str((b_int >> 6) & 0x0007)
+    perm_m = str((b_int >> 3) & 0x0007)
+    perm_l = str(b_int & 0x0007)
+
+    return type_h + type_l + "0" + perm_h + perm_m + perm_l
+
+
+def _parse_flags(b: bytes) -> list[str]:
+    flags_int = int.from_bytes(bytes=b, byteorder="big")
+    assume_valid_flag = str(flags_int >> 15)
+    extended_flag = str((flags_int >> 14) & 1)
+    stage_flag = str((flags_int >> 12) & 3)
+    file_name_length = str(flags_int & 4095)
+
+    return [
+        assume_valid_flag,
+        extended_flag,
+        stage_flag,
+        file_name_length,
+    ]
 
 
 def _is_extension_optional(signature: bytes) -> bool:

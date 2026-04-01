@@ -24,7 +24,7 @@ wheels = [
 ]
 
 [[package]]
-name = "git-index-decoder"
+name = "gid"
 version = "0.1.0"
 source = { virtual = "." }
 
