@@ -46,22 +46,51 @@ def decode(filepath: str) -> None:
                 intend_to_add = (field >> 13) & 1
 
             entry_path_name = None
+            c = 1
             if name_len != 0xFFF:
-                entry_path_name = f.read(name_len)
-            else:
-                b = f.peek(1)
-                while b != b"\x00":
-                    b = f.read(1)
-                    entry_path_name += b
-                    b = f.peek(1)
+                entry_path_name = f.read(name_len + 1)
+                print(f"Name length: {name_len}")
+                print(f"Name: {entry_path_name}")
+                print("Starting to seek NUL bytes")
+                padding_bytes = 8 - (name_len % 8)
+                print(f"Reading {padding_bytes} padding bytes")
+                _ = f.read(padding_bytes)
 
-            print(entry_path_name)
+                # b = f.peek(1)[:1]
+                # _ = f.read(0)
+                # while b == b"\x00":
+                #     c += 1
+                #     print("after name NUL byte")
+                #     _ = f.read(1)
+                #     b = f.peek(1)[:1]
+                #     print(f"next byte: {b}")
+                #     if c >= 7:
+                #         break
+            # else:
+            #     print(f"Name length: {entry_path_name}")
+            #     print("Starting to seek NUL bytes")
+            #     b = f.peek(1)[:1]
+            #     while b != b"\x00":
+            #         print("NUL byte")
+            #         b = f.read(1)
+            #         entry_path_name += b
+            #         b = f.peek(1)[:1]
+            #
+            #     b = f.peek(1)
+            #     while b == b"\x00" and b is not None:
+            #         print("NUL byte")
+            #         f.read(1)
+            #         b = f.peek(1)[:1]
 
-            if version < 4:
-                b = f.peek(1)[:1]
-                while b == b"\x00":
-                    f.read(1)
-                    b = f.peek(1)[:1]
+            print(f"Done reading {c} NUL bytes")
+
+            # if version < 4:
+            #     print("Starting to seek NUL bytes after entry end")
+            #     b = f.peek(1)[:1]
+            #     while b == b"\x00":
+            #         print("after entry NUL byte")
+            #         f.read(1)
+            #         b = f.peek(1)[:1]
 
             print(_format_value_line("ctime_sec:", ctime_sec))
             print(_format_value_line("ctime_ns:", ctime_ns))
