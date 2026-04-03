@@ -1,6 +1,22 @@
+#                           Structure
+# -----------------------------------------------------------------
+# Data                                       |   Bytes            |
+# -----------------------------------------------------------------
+# Header                                     |  12                |
+# Entry metadata                             |  62                |
+# Entry file name                            |  N                 |
+# Mandatory file name terminating NUL byte   |  1                 |
+# File name padding NUL bytes                |  (8 - (F % 8)) % 8 |
+# Extension signature                        |  4                 |
+# Extension size                             |  4                 |
+# Extension data                             |  M                 |
+# -----------------------------------------------------------------
+
+
 def decode(filepath: str) -> None:
+    data: dict[str, bytes] = {}
+
     with open(filepath, "rb") as f:
-        # Header
         header = f.read(12)
 
         dircache: str = _bytes_to_ascii(header[0:4])
@@ -9,8 +25,8 @@ def decode(filepath: str) -> None:
 
         print("[header]")
         print(_format_value_line("dircache:", dircache))
-        print(f"{'version:':<30} {version}")
-        print(f"{'entries:':<30} {num_index_entries}")
+        print(_format_value_line("version:", version))
+        print(_format_value_line("entires:", num_index_entries))
 
         print("")
 
@@ -18,7 +34,7 @@ def decode(filepath: str) -> None:
         for i in range(num_index_entries):
             print("[entry]")
 
-            metadata: bytes = f.read(40)
+            metadata: bytes = f.read(62)
 
             ctime_sec: int = _bytes_to_int(metadata[0:4])
             ctime_ns: int = _bytes_to_int(metadata[4:8])
@@ -31,67 +47,43 @@ def decode(filepath: str) -> None:
             uid: int = _bytes_to_int(metadata[28:32])
             gid: int = _bytes_to_int(metadata[32:36])
             file_size: int = _bytes_to_int(metadata[36:40])
+            sha1: bytes = metadata[40:60]
+            flags_bytes: bytes = metadata[60:62]
 
-            sha1: bytes = f.read(20)
-
-            flags_bytes: bytes = f.read(2)
             assume_valid, extended, stage, name_len = _parse_flags(flags_bytes)
+            skip_worktree = False
+            intend_to_add = False
 
-            skip_worktree = None
-            intend_to_add = None
+            # How many bytes consumed so far for this entry
+            entry_bytes = 62
 
-            if (version >= 3) and (extended == 1):
-                field = f.read(2)
+            if (version >= 3) and (extended == "1"):
+                field = _bytes_to_int(f.read(2))
+                entry_bytes += 2
                 skip_worktree = (field >> 14) & 1
                 intend_to_add = (field >> 13) & 1
 
             entry_path_name = None
-            c = 1
-            if name_len != 0xFFF:
-                entry_path_name = f.read(name_len + 1)
-                print(f"Name length: {name_len}")
-                print(f"Name: {entry_path_name}")
-                print("Starting to seek NUL bytes")
-                padding_bytes = 8 - (name_len % 8)
-                print(f"Reading {padding_bytes} padding bytes")
-                _ = f.read(padding_bytes)
+            if name_len != 0x0FFF:
+                entry_path_name = f.read(name_len)
+                entry_bytes += len(entry_path_name)
+            else:
+                # Read until a NUL byte (0x00)
+                entry_path_name: bytes = ""
+                b = f.peek(1)[:1]  # peek can return more than 1 byte
+                while b != b"\x00":
+                    entry_path_name += f.read(1)
+                    b = f.peek(1)[:1]
 
-                # b = f.peek(1)[:1]
-                # _ = f.read(0)
-                # while b == b"\x00":
-                #     c += 1
-                #     print("after name NUL byte")
-                #     _ = f.read(1)
-                #     b = f.peek(1)[:1]
-                #     print(f"next byte: {b}")
-                #     if c >= 7:
-                #         break
-            # else:
-            #     print(f"Name length: {entry_path_name}")
-            #     print("Starting to seek NUL bytes")
-            #     b = f.peek(1)[:1]
-            #     while b != b"\x00":
-            #         print("NUL byte")
-            #         b = f.read(1)
-            #         entry_path_name += b
-            #         b = f.peek(1)[:1]
-            #
-            #     b = f.peek(1)
-            #     while b == b"\x00" and b is not None:
-            #         print("NUL byte")
-            #         f.read(1)
-            #         b = f.peek(1)[:1]
+            # Consume mandatory 1 NUL byte
+            _ = f.read(1)
+            entry_bytes += 1
 
-            print(f"Done reading {c} NUL bytes")
+            # Consume padding bytes
+            padding_bytes = (8 - (entry_bytes % 8)) % 8
+            _ = f.read(padding_bytes)
 
-            # if version < 4:
-            #     print("Starting to seek NUL bytes after entry end")
-            #     b = f.peek(1)[:1]
-            #     while b == b"\x00":
-            #         print("after entry NUL byte")
-            #         f.read(1)
-            #         b = f.peek(1)[:1]
-
+            print(_format_value_line("entry:", str(i + 1)))
             print(_format_value_line("ctime_sec:", ctime_sec))
             print(_format_value_line("ctime_ns:", ctime_ns))
             print(_format_value_line("mtime_sec:", mtime_sec))
@@ -119,7 +111,7 @@ def decode(filepath: str) -> None:
         extension_data: bytes = f.read(extension_size)
 
         print("[extension]")
-        print(_format_value_line("signature:", extension_signature))
+        print(_format_value_line("signature:", _bytes_to_ascii(extension_signature)))
         print(_format_value_line("optional:", str(extension_optional)))
         print(_format_value_line("size:", extension_size))
         print(_format_value_line("data:", str(extension_data)))
