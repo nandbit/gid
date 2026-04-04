@@ -13,7 +13,9 @@
 # -----------------------------------------------------------------
 
 import argparse
+import sys
 from contextlib import ExitStack
+from typing import Optional
 
 from gid.utils import (
     bytes_to_ascii,
@@ -181,7 +183,7 @@ class Extension:
         return (
             "{" + f'"signature":"{bytes_to_ascii(self.signature)}",'
             f'"size":{self.size},'
-            f'"data":"{self.data}"' + "}"
+            f'"data":"{self.data.hex()}"' + "}"
         )
 
     def _parse_signature(self) -> None:
@@ -199,7 +201,6 @@ class Extension:
 
 
 def parse(filepath: str, args: argparse.ArgumentParser) -> None:
-    print(args)
     with ExitStack() as stack:
         f = stack.enter_context(open(filepath, "rb"))
         header_bytes = f.read(12)
@@ -234,17 +235,52 @@ def parse(filepath: str, args: argparse.ArgumentParser) -> None:
                     f_json.write(",")
 
         if args.to_json is not None and header.num_entries > 0:
-            f_json.write("]")
+            f_json.write("],")
 
-        # Extensions
-        extension = Extension(f.read(8))
-        extension_data = f.read(extension.size)
-        extension.parse_data(extension_data)
+        # Checksum & Extensions
+        checksum: Optional[bytes] = None
+        remaining_bytes: int = len(f.peek())
 
+        if remaining_bytes == 20:
+            # Last 20 bytes are the checksum, there are no extensions
+            checksum: bytes = f.read().hex()
+            if not args.quiet:
+                print(checksum)
+
+            if args.to_json is not None:
+                f_json.write(f'{{"checksum":"{checksum}"}}')
+
+            sys.exit(1)
+        else:
+            if not args.quiet:
+                print("[extensions]")
+            if args.to_json is not None:
+                f_json.write('"extensions":[')
+
+        while remaining_bytes > 20:
+            extension = Extension(f.read(8))
+            extension_data = f.read(extension.size)
+            extension.parse_data(extension_data)
+            remaining_bytes: int = len(f.peek())
+
+            if args.to_json is not None:
+                f_json.write(extension.format_json())
+
+            if not args.quiet:
+                print(extension.format())
+
+            # if args.to_json is not None and header.num_entries > 0:
+            # f_json.write("}")
+
+        # Close off extensions list
+        f_json.write("],")
+
+        checksum: bytes = f.read().hex()
         if not args.quiet:
-            print(extension.format())
+            print(checksum)
 
-        if args.to_json is not None and header.num_entries > 0:
+        if args.to_json is not None:
+            f_json.write(f'"checksum":"{checksum}"')
             f_json.write("}")
 
 
