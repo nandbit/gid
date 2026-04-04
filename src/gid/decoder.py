@@ -13,6 +13,7 @@
 # -----------------------------------------------------------------
 
 import argparse
+from contextlib import ExitStack
 
 from gid.utils import (
     bytes_to_ascii,
@@ -38,6 +39,9 @@ class Header:
             + format_value_line("entries:", self.num_entries)
             + "\n"
         )
+
+    def format_json(self) -> str:
+        return f'{{"dircache": "{self.dircache}","version": {self.version},"entries": {self.num_entries}}}'
 
 
 class Entry:
@@ -107,8 +111,32 @@ class Entry:
             + "\n"
             + format_value_line("skip-worktree:", self.skip_worktree)
             + "\n"
+            + format_value_line("intend-to-add:", self.intend_to_add)
+            + "\n"
             + format_value_line("name:", self.name)
             + "\n"
+        )
+
+    def format_json(self) -> str:
+        return (
+            "{"
+            + f'"ctime_s":{self.ctime_sec},'
+            + f'"ctime_ns":{self.ctime_ns},'
+            + f'"mtime_s":{self.mtime_sec},'
+            + f'"mtime_ns":{self.mtime_ns},'
+            + f'"dev":{self.dev},'
+            + f'"ino":{self.ino},'
+            + f'"mode":{self.mode},'
+            + f'"uid":{self.uid},'
+            + f'"gid":{self.gid},'
+            + f'"sha1":"{self.sha1}",'
+            + f'"assume-valid":{self.assume_valid},'
+            + f'"extended":{self.extended},'
+            + f'"stage":{self.stage},'
+            + (f'"skip-worktree":{self.skip_worktree},' if self.skip_worktree else "")
+            + (f'"intend-to-add":{self.intend_to_add},' if self.intend_to_add else "")
+            + f'"name":"{self.name}"'
+            + "}"
         )
 
     def _parse_mode(self, b: bytes) -> str:
@@ -149,6 +177,13 @@ class Extension:
             + format_value_line("data:", self.data)
         )
 
+    def format_json(self) -> None:
+        return (
+            "{" + f'"signature":"{bytes_to_ascii(self.signature)}",'
+            f'"size":{self.size},'
+            f'"data":"{self.data}"' + "}"
+        )
+
     def _parse_signature(self) -> None:
         self.signature: bytes = self.bytes[0:4]
         self.optional: bool = self._is_optional()
@@ -164,13 +199,27 @@ class Extension:
 
 
 def decode(filepath: str, args: argparse.ArgumentParser) -> None:
-    with open(filepath, "rb") as f:
+    print(args)
+    with ExitStack() as stack:
+        f = stack.enter_context(open(filepath, "rb"))
         header_bytes = f.read(12)
         header = Header()
         header.parse(header_bytes)
 
         if not args.quiet:
             print(header.format())
+
+        if args.to_json is not None:
+            f_json = stack.enter_context(open(args.to_json, "w+"))
+            f_json.write("{")
+            f_json.write('"header":')
+            f_json.write(header.format_json())
+            if header.num_entries > 0:
+                f_json.write(",")
+
+        if args.to_json is not None and header.num_entries > 0:
+            f_json.write('"entries":')
+            f_json.write("[")
 
         # Index entries
         for i in range(header.num_entries):
@@ -179,6 +228,14 @@ def decode(filepath: str, args: argparse.ArgumentParser) -> None:
             if not args.quiet:
                 print(entry.format())
 
+            if args.to_json is not None:
+                f_json.write(entry.format_json())
+                if i < (header.num_entries - 1):
+                    f_json.write(",")
+
+        if args.to_json is not None and header.num_entries > 0:
+            f_json.write("]")
+
         # Extensions
         extension = Extension(f.read(8))
         extension_data = f.read(extension.size)
@@ -186,6 +243,9 @@ def decode(filepath: str, args: argparse.ArgumentParser) -> None:
 
         if not args.quiet:
             print(extension.format())
+
+        if args.to_json is not None and header.num_entries > 0:
+            f_json.write("}")
 
 
 def _parse_entry(f, header: Header) -> Entry:
