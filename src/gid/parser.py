@@ -37,6 +37,7 @@
 
 import argparse
 import sys
+import typing
 from contextlib import ExitStack
 from typing import Optional
 
@@ -49,9 +50,9 @@ from gid.utils import (
 
 class Header:
     def parse(self, bytes: bytes) -> None:
-        self.dircache = bytes_to_ascii(bytes[0:4])
-        self.version = bytes_to_int(bytes[4:8])
-        self.num_entries = bytes_to_int(bytes[8:12])
+        self.dircache: str = bytes_to_ascii(bytes[0:4])
+        self.version: int = bytes_to_int(bytes[4:8])
+        self.num_entries: int = bytes_to_int(bytes[8:12])
 
     def format(self) -> str:
         return (
@@ -71,33 +72,33 @@ class Header:
 
 class Entry:
     def parse_metadata(self, metadata: bytes) -> None:
-        self.ctime_sec = bytes_to_int(metadata[0:4])
-        self.ctime_ns = bytes_to_int(metadata[4:8])
-        self.mtime_sec = bytes_to_int(metadata[8:12])
-        self.mtime_ns = bytes_to_int(metadata[12:16])
-        self.dev = bytes_to_int(metadata[16:20])
-        self.ino = bytes_to_int(metadata[20:24])
-        self.type_and_permissions = metadata[24:28]
-        self.mode = self._parse_mode(metadata[24:28])
-        self.uid = bytes_to_int(metadata[28:32])
-        self.gid = bytes_to_int(metadata[32:36])
-        self.file_size = bytes_to_int(metadata[36:40])
-        self.sha1 = metadata[40:60].hex()
-        self.flags = bytes_to_int(metadata[60:62])
-        self.assume_valid = (self.flags & 0x00FF) >> 15
-        self.extended = (self.flags >> 14) & 1
-        self.stage = (self.flags >> 12) & 3
-        self.name_len = self.flags & 4095
-        self.skip_worktree = None
-        self.intend_to_add = None
+        self.ctime_sec: int = bytes_to_int(metadata[0:4])
+        self.ctime_ns: int = bytes_to_int(metadata[4:8])
+        self.mtime_sec: int = bytes_to_int(metadata[8:12])
+        self.mtime_ns: int = bytes_to_int(metadata[12:16])
+        self.dev: int = bytes_to_int(metadata[16:20])
+        self.ino: int = bytes_to_int(metadata[20:24])
+        self.type_and_permissions: bytes = metadata[24:28]
+        self.mode: str = self._parse_mode(metadata[24:28])
+        self.uid: int = bytes_to_int(metadata[28:32])
+        self.gid: int = bytes_to_int(metadata[32:36])
+        self.file_size: int = bytes_to_int(metadata[36:40])
+        self.sha1: str = metadata[40:60].hex()
+        self.flags: int = bytes_to_int(metadata[60:62])
+        self.assume_valid: int = (self.flags & 0x00FF) >> 15
+        self.extended: int = (self.flags >> 14) & 1
+        self.stage: int = (self.flags >> 12) & 3
+        self.name_len: int = self.flags & 4095
+        self.skip_worktree: int | None = None
+        self.intend_to_add: int | None = None
 
     def parse_field(self, field: bytes) -> None:
-        field_int = bytes_to_int(field)
-        self.skip_worktree = (field_int >> 14) & 1
-        self.intend_to_add = (field_int >> 13) & 1
+        field_int: int = bytes_to_int(field)
+        self.skip_worktree: int = (field_int >> 14) & 1
+        self.intend_to_add: int = (field_int >> 13) & 1
 
     def parse_name(self, name: bytes) -> None:
-        self.name = bytes_to_ascii(name)
+        self.name: str = bytes_to_ascii(name)
 
     def consumed_bytes(self) -> int:
         if (self.skip_worktree is not None) and (self.intend_to_add is not None):
@@ -172,24 +173,24 @@ class Entry:
         # For type:
         # 1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
 
-        b_int = int.from_bytes(bytes=b, byteorder="big")
-        type_h = str(b_int >> 15)
-        type_l = str((b_int >> 12) & 0x0007)
-        perm_h = str((b_int >> 6) & 0x0007)
-        perm_m = str((b_int >> 3) & 0x0007)
-        perm_l = str(b_int & 0x0007)
+        b_int: str = int.from_bytes(bytes=b, byteorder="big")
+        type_h: str = str(b_int >> 15)
+        type_l: str = str((b_int >> 12) & 0x0007)
+        perm_h: str = str((b_int >> 6) & 0x0007)
+        perm_m: str = str((b_int >> 3) & 0x0007)
+        perm_l: str = str(b_int & 0x0007)
 
         return type_h + type_l + "0" + perm_h + perm_m + perm_l
 
 
 class Extension:
     def __init__(self, bytes: bytes) -> None:
-        self.bytes = bytes
+        self.bytes: bytes = bytes
         self._parse_signature()
         self._parse_size()
 
     def parse_data(self, data: bytes) -> None:
-        self.data = data
+        self.data: bytes = data
 
     def format(self) -> str:
         return (
@@ -225,19 +226,20 @@ class Extension:
 
 def parse(filepath: str, args: argparse.ArgumentParser) -> None:
     with ExitStack() as stack:
-        f = stack.enter_context(open(filepath, "rb"))
-        header_bytes = f.read(12)
-        header = Header()
+        f: typing.BinaryIO = stack.enter_context(open(filepath, "rb"))
+        header_bytes: bytes = f.read(12)
+        header: Header = Header()
         header.parse(header_bytes)
 
         if not args.quiet:
             print(header.format())
 
         if args.to_json is not None:
-            f_json = stack.enter_context(open(args.to_json, "w+"))
+            f_json: typing.TextIO = stack.enter_context(open(args.to_json, "w+"))
             f_json.write("{")
             f_json.write('"header":')
             f_json.write(header.format_json())
+
             if header.num_entries > 0:
                 f_json.write(",")
 
@@ -247,7 +249,7 @@ def parse(filepath: str, args: argparse.ArgumentParser) -> None:
 
         # Index entries
         for i in range(header.num_entries):
-            entry = _parse_entry(f, header)
+            entry: Entry = _parse_entry(f, header)
 
             if not args.quiet:
                 print(entry.format())
@@ -281,8 +283,8 @@ def parse(filepath: str, args: argparse.ArgumentParser) -> None:
                 f_json.write('"extensions":[')
 
         while remaining_bytes > 20:
-            extension = Extension(f.read(8))
-            extension_data = f.read(extension.size)
+            extension: Extension = Extension(f.read(8))
+            extension_data: bytes = f.read(extension.size)
             extension.parse_data(extension_data)
             remaining_bytes: int = len(f.peek())
 
@@ -291,9 +293,6 @@ def parse(filepath: str, args: argparse.ArgumentParser) -> None:
 
             if not args.quiet:
                 print(extension.format())
-
-            # if args.to_json is not None and header.num_entries > 0:
-            # f_json.write("}")
 
         # Close off extensions list
         f_json.write("],")
@@ -304,6 +303,8 @@ def parse(filepath: str, args: argparse.ArgumentParser) -> None:
 
         if args.to_json is not None:
             f_json.write(f'"checksum":"{checksum}"')
+
+            # Close off the entire JSON block
             f_json.write("}")
 
 
