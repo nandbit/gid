@@ -12,6 +12,8 @@
 # Extension data                             |  M                 |
 # -----------------------------------------------------------------
 
+import argparse
+
 from gid.utils import (
     bytes_to_ascii,
     bytes_to_int,
@@ -161,26 +163,29 @@ class Extension:
         return False
 
 
-def decode(filepath: str) -> None:
+def decode(filepath: str, args: argparse.ArgumentParser) -> None:
     with open(filepath, "rb") as f:
         header_bytes = f.read(12)
         header = Header()
         header.parse(header_bytes)
 
-        print(header.format())
+        if not args.quiet:
+            print(header.format())
 
         # Index entries
         for i in range(header.num_entries):
             entry = _parse_entry(f, header)
 
-            print(entry.format())
+            if not args.quiet:
+                print(entry.format())
 
         # Extensions
         extension = Extension(f.read(8))
         extension_data = f.read(extension.size)
         extension.parse_data(extension_data)
 
-        print(extension.format())
+        if not args.quiet:
+            print(extension.format())
 
 
 def _parse_entry(f, header: Header) -> Entry:
