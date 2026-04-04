@@ -198,7 +198,7 @@ class Extension:
         return False
 
 
-def decode(filepath: str, args: argparse.ArgumentParser) -> None:
+def parse(filepath: str, args: argparse.ArgumentParser) -> None:
     print(args)
     with ExitStack() as stack:
         f = stack.enter_context(open(filepath, "rb"))

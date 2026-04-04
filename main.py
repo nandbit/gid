@@ -1,11 +1,11 @@
 from gid.argparse import setup_argparser
-from gid.decoder import decode
+from gid.parser import parse
 
 
 def main():
     index_filepath = "./tests/01.index"
     argparser = setup_argparser()
-    decode(
+    parse(
         index_filepath,
         argparser.parse_args(),
     )

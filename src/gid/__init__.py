@@ -1,3 +1,3 @@
-from .decoder import decode
+from .parser import parse
 
-__all__ = ["decode"]
+__all__ = ["parse"]
