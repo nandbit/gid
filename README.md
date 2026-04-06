@@ -5,3 +5,9 @@
     - It is a binary file with the format specified at: https://git-scm.com/docs/index-format
 - Supports up to Version 3 of git
 - Can output to stdout as well as JSON
+
+## Installation
+- `uv tool install .`
+
+## Running
+- `gid --help`
