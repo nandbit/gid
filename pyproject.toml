@@ -1,12 +1,28 @@
+[build-system]
+requires = ["uv_build >= 0.10.10, <0.11.0"]
+build-backend = "uv_build"
+
 [project]
 name = "gid"
 version = "0.1.0"
 description = "Git index file parser."
 readme = "README.md"
 requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
 dependencies = []
+license = "MIT"
+license-files = ["LICENSE"]
+
+[project.scripts]
+gid = "gid.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/nandbit/gid"
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.15.9",
 ]

@@ -224,9 +224,9 @@ class Extension:
         return False
 
 
-def parse(filepath: str, args: argparse.ArgumentParser) -> None:
+def parse(args: argparse.ArgumentParser) -> None:
     with ExitStack() as stack:
-        f: typing.BinaryIO = stack.enter_context(open(filepath, "rb"))
+        f: typing.BinaryIO = stack.enter_context(open(args.input, "rb"))
         header_bytes: bytes = f.read(12)
         header: Header = Header()
         header.parse(header_bytes)
@@ -295,11 +295,14 @@ def parse(filepath: str, args: argparse.ArgumentParser) -> None:
                 print(extension.format())
 
         # Close off extensions list
-        f_json.write("],")
+        if args.to_json is not None:
+            f_json.write("],")
 
         checksum: bytes = f.read().hex()
         if not args.quiet:
-            print(checksum)
+            print("")
+            print("[checksum]")
+            print(f"checksum: {checksum}")
 
         if args.to_json is not None:
             f_json.write(f'"checksum":"{checksum}"')
